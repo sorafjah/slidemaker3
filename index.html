@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Slide Presentation Maker</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=BIZ+UDPGothic&display=swap');
+
+    /* =========================================
+       Base Styles
+       ========================================= */
+    :root {
+        --primary: #2c3e50;
+        --primary-hover: #1a252f;
+        --bg-color: #ffffff;
+        --text-color: #333333;
+        --panel-bg: #f8f9fa;
+        --border-color: #e0e0e0;
+        --font-family: 'BIZ UDPGothic', "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    body, html {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        font-family: var(--font-family);
+        overflow: hidden;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+    }
+
+    /* =========================================
+       Presentation Area
+       ========================================= */
+    #presentation {
+        width: 100%; height: 100%;
+        position: relative;
+    }
+
+    .slide {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.5s ease-in-out;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+    }
+
+    .slide.active {
+        opacity: 1; pointer-events: auto;
+    }
+
+    .slide-content {
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        width: 100%; height: 100%; padding: 5%;
+        text-align: center;
+    }
+
+    .slide-content img {
+        max-width: 90%; max-height: 55vh;
+        object-fit: contain;
+        border-radius: 6px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        margin-bottom: 1.5rem;
+    }
+
+    .slide-content p {
+        white-space: pre-wrap; line-height: 1.6; margin: 0;
+        max-width: 90%; word-break: break-word;
+    }
+
+    /* =========================================
+       Navigation & Controls
+       ========================================= */
+    .nav-area {
+        position: fixed; top: 0; bottom: 0; width: 12%; z-index: 5;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        color: rgba(0,0,0,0.15); font-size: 3rem;
+        transition: color 0.3s, background 0.3s;
+        user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    
+    .nav-area:hover {
+        color: rgba(0,0,0,0.5);
+    }
+
+    #prev-btn { left: 0; }
+    #next-btn { right: 0; }
+
+    #settings-btn {
+        position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+        font-size: 1.5rem; background: transparent; border: none;
+        color: rgba(0,0,0,0.2); cursor: pointer; z-index: 10;
+        transition: color 0.3s, transform 0.3s;
+        padding: 0.5rem; border-radius: 50%;
+    }
+
+    #settings-btn:hover {
+        color: rgba(0,0,0,0.7); transform: translateX(-50%) rotate(90deg);
+    }
+
+    /* =========================================
+       Editor Panel
+       ========================================= */
+    #editor {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: var(--panel-bg); z-index: 20;
+        display: none;
+    }
+
+    #editor.open { display: block; }
+
+    .editor-container {
+        max-width: 800px; margin: 0 auto; width: 100%; height: 100%;
+        display: flex; flex-direction: column;
+        background: #ffffff; box-shadow: 0 0 20px rgba(0,0,0,0.05);
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+    }
+
+    .editor-header {
+        padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border-color);
+        display: flex; justify-content: space-between; align-items: center;
+        background: #ffffff;
+    }
+
+    .editor-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #333; }
+    
+    .close-btn {
+        background: none; border: none; font-size: 1.5rem; cursor: pointer;
+        color: #888; transition: color 0.2s; padding: 0; line-height: 1;
+    }
+    .close-btn:hover { color: #333; }
+
+    .editor-content { flex: 1; overflow-y: auto; padding: 1.5rem; }
+
+    .editor-slide-item {
+        background: var(--panel-bg); border: 1px solid var(--border-color);
+        border-radius: 8px; padding: 1.2rem; margin-bottom: 1.5rem;
+    }
+
+    .editor-slide-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 1rem; border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.8rem;
+    }
+
+    .slide-badge { font-weight: 600; color: #666; font-size: 0.9rem; }
+
+    .slide-actions button {
+        background: #fff; border: 1px solid #ccc; border-radius: 4px;
+        cursor: pointer; color: #555; margin-left: 0.3rem; padding: 0.2rem 0.5rem;
+        font-size: 0.9rem; transition: background 0.2s;
+    }
+    .slide-actions button:hover:not([disabled]) { background: #eee; color: #000; }
+
+    .form-group { margin-bottom: 1.2rem; }
+    .form-group label {
+        display: block; font-size: 0.85rem; color: #555; margin-bottom: 0.4rem; font-weight: 600;
+    }
+
+    .form-control {
+        width: 100%; padding: 0.6rem; border: 1px solid #ccc;
+        border-radius: 4px; font-family: inherit; font-size: 0.9rem;
+        transition: border-color 0.2s;
+    }
+    .form-control:focus { outline: none; border-color: var(--primary); }
+
+    textarea.form-control { resize: vertical; min-height: 90px; }
+    
+    input[type="color"] {
+        padding: 0; height: 36px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
+    }
+    
+    input[type="range"] {
+        width: 100%; cursor: pointer; margin-top: 0.5rem;
+    }
+
+    .image-preview {
+        max-width: 100%; max-height: 120px; margin-top: 0.8rem;
+        border-radius: 4px; object-fit: contain; background: #fff;
+        border: 1px solid #eee; display: none;
+    }
+
+    .editor-footer {
+        padding: 1.5rem; border-top: 1px solid var(--border-color);
+        background: var(--panel-bg); display: flex; flex-direction: column; gap: 0.8rem;
+    }
+
+    .btn {
+        padding: 0.8rem 1rem; border: none; border-radius: 6px; font-size: 0.95rem;
+        cursor: pointer; font-weight: 600; text-align: center; transition: all 0.2s;
+        width: 100%;
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #fff; color: #333; border: 1px solid #ccc; }
+    .btn-secondary:hover { background: #f0f0f0; }
+    .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; width: auto; }
+    .btn-danger { background: #fee; color: #c00; border: 1px solid #fcc; }
+
+</style>
+</head>
+<body>
+
+<!-- Presentation Area -->
+<div id="presentation"></div>
+
+<!-- Navigation Controls -->
+<div id="prev-btn" class="nav-area" onclick="prevSlide()" aria-label="前のスライド">◁</div>
+<div id="next-btn" class="nav-area" onclick="nextSlide()" aria-label="次のスライド">▷</div>
+<button id="settings-btn" aria-label="設定" onclick="toggleEditor()" title="設定・編集">⚙️</button>
+
+<!-- Editor Panel -->
+<div id="editor">
+    <div class="editor-container">
+        <div class="editor-header">
+            <h2>スライド設定・編集</h2>
+            <button class="close-btn" onclick="toggleEditor()" title="プレゼン画面に戻る">✕</button>
+        </div>
+        <div class="editor-content" id="editor-content">
+            <!-- Editor items injected by JS -->
+        </div>
+        <div class="editor-footer">
+            <button class="btn btn-secondary" onclick="addSlide()">+ スライドを追加</button>
+            <button class="btn btn-primary" onclick="exportHTML()">📥 保存する (HTMLをダウンロード)</button>
+        </div>
+    </div>
+</div>
+
+<!-- DATA STORAGE: This holds the state and is exported with the HTML -->
+<script id="app-data" type="application/json">
+[
+    {
+        "id": "init_1",
+        "text": "プレゼンテーションへようこそ\n\n画面下部の ⚙️ アイコンから編集を開始してください。",
+        "fontSize": 48,
+        "bgColor": "#ffffff",
+        "textColor": "#333333",
+        "image": null
+    }
+]
+</script>
+
+<script>
+    /* =========================================
+       Application State & Logic
+       ========================================= */
+    let slides = [];
+    let currentSlideIndex = 0;
+
+    // 初期化処理
+    function init() {
+        const dataScript = document.getElementById('app-data');
+        if (dataScript && dataScript.textContent.trim()) {
+            try {
+                slides = JSON.parse(dataScript.textContent);
+            } catch(e) {
+                console.error("データの読み込みに失敗しました:", e);
+            }
+        }
+        
+        if (slides.length === 0) {
+            addSlide(true);
+        } else {
+            // エクスポートされたHTMLを開いた際、常に最初のスライドからスタートさせる
+            currentSlideIndex = 0; 
+            renderPresentation();
+            renderEditor();
+            updateNavButtons();
+        }
+    }
+
+    // スライドの初期データ構造
+    function createSlideObject() {
+        return {
+            id: 'slide_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+            text: "新しいスライド",
+            fontSize: 36,
+            bgColor: "#ffffff",
+            textColor: "#333333",
+            image: null
+        };
+    }
+
+    // スライドの追加
+    function addSlide(isInitial = false) {
+        slides.push(createSlideObject());
+        if (!isInitial) {
+            currentSlideIndex = slides.length - 1;
+            renderPresentation();
+            renderEditor();
+            updateNavButtons();
+            
+            // 追加したスライドまでスクロール
+            setTimeout(() => {
+                const editorContent = document.getElementById('editor-content');
+                editorContent.scrollTop = editorContent.scrollHeight;
+            }, 50);
+        }
+    }
+
+    // スライドの削除
+    function deleteSlide(index) {
+        if (slides.length <= 1) {
+            alert("最後のスライドは削除できません。");
+            return;
+        }
+        if(confirm("このスライドを削除しますか？")){
+            slides.splice(index, 1);
+            if (currentSlideIndex >= slides.length) {
+                currentSlideIndex = slides.length - 1;
+            }
+            renderPresentation();
+            renderEditor();
+            updateNavButtons();
+        }
+    }
+
+    // スライドの順序変更
+    function moveSlide(index, direction) {
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= slides.length) return;
+        
+        const temp = slides[index];
+        slides[index] = slides[newIndex];
+        slides[newIndex] = temp;
+        
+        if (currentSlideIndex === index) {
+            currentSlideIndex = newIndex;
+        } else if (currentSlideIndex === newIndex) {
+            currentSlideIndex = index;
+        }
+        
+        renderPresentation();
+        renderEditor();
+        updateNavButtons();
+    }
+
+    // 画像のアップロード処理 (Base64変換)
+    function handleImageUpload(event, index) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            slides[index].image = e.target.result;
+            renderPresentation();
+            renderEditor();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 画像の削除
+    function removeImage(index) {
+        slides[index].image = null;
+        renderPresentation();
+        renderEditor();
+    }
+
+    // テキスト・カラー・サイズのリアルタイム更新
+    function handleInput(index, key, value) {
+        slides[index][key] = value;
+        updatePresentationSlide(index);
+        if(key === 'fontSize') {
+            document.getElementById(`font-size-val-${index}`).textContent = value;
+        }
+    }
+
+    /* =========================================
+       Rendering Logic
+       ========================================= */
+       
+    // プレゼン画面のフルレンダリング
+    function renderPresentation() {
+        const container = document.getElementById('presentation');
+        container.innerHTML = '';
+        
+        slides.forEach((slide, index) => {
+            const slideEl = document.createElement('div');
+            slideEl.className = `slide ${index === currentSlideIndex ? 'active' : ''}`;
+            slideEl.id = `pres-slide-${index}`;
+            
+            applySlideStyle(slideEl, slide);
+            
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'slide-content';
+            
+            if (slide.image) {
+                const img = document.createElement('img');
+                img.src = slide.image;
+                contentWrapper.appendChild(img);
+            }
+            if (slide.text) {
+                const p = document.createElement('p');
+                p.textContent = slide.text;
+                contentWrapper.appendChild(p);
+            }
+            
+            slideEl.appendChild(contentWrapper);
+            container.appendChild(slideEl);
+        });
+    }
+
+    // 特定のスライドのみ更新（入力中のパフォーマンス向上・フォーカス維持用）
+    function updatePresentationSlide(index) {
+        const slideEl = document.getElementById(`pres-slide-${index}`);
+        if (!slideEl) return;
+        
+        const slide = slides[index];
+        applySlideStyle(slideEl, slide);
+        
+        // 中身を再構築
+        slideEl.innerHTML = '';
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'slide-content';
+        
+        if (slide.image) {
+            const img = document.createElement('img');
+            img.src = slide.image;
+            contentWrapper.appendChild(img);
+        }
+        if (slide.text) {
+            const p = document.createElement('p');
+            p.textContent = slide.text;
+            contentWrapper.appendChild(p);
+        }
+        slideEl.appendChild(contentWrapper);
+    }
+
+    function applySlideStyle(el, slide) {
+        el.style.backgroundColor = slide.bgColor;
+        el.style.color = slide.textColor;
+        el.style.fontSize = `${slide.fontSize}px`;
+    }
+
+    // エディタ画面のレンダリング
+    function renderEditor() {
+        const container = document.getElementById('editor-content');
+        container.innerHTML = '';
+        
+        slides.forEach((slide, index) => {
+            const item = document.createElement('div');
+            item.className = 'editor-slide-item';
+            
+            item.innerHTML = `
+                <div class="editor-slide-header">
+                    <span class="slide-badge">Slide ${index + 1}</span>
+                    <div class="slide-actions">
+                        <button onclick="moveSlide(${index}, -1)" ${index === 0 ? 'disabled style="opacity:0.4"' : ''} title="一つ前へ">▲</button>
+                        <button onclick="moveSlide(${index}, 1)" ${index === slides.length - 1 ? 'disabled style="opacity:0.4"' : ''} title="一つ後へ">▼</button>
+                        <button onclick="deleteSlide(${index})" title="削除">🗑️</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>画像</label>
+                    <input type="file" class="form-control" accept="image/*" onchange="handleImageUpload(event, ${index})">
+                    ${slide.image ? `
+                        <img src="${slide.image}" class="image-preview" style="display:block;">
+                        <button type="button" class="btn btn-secondary btn-sm btn-danger" style="margin-top:0.5rem;" onclick="removeImage(${index})">画像を削除</button>
+                    ` : ''}
+                </div>
+                
+                <div class="form-group">
+                    <label>文章</label>
+                    <textarea class="form-control slide-text-input" data-index="${index}" placeholder="スライドに表示するテキスト">${escapeHTML(slide.text)}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>文字サイズ: <span id="font-size-val-${index}">${slide.fontSize}</span>px</label>
+                    <input type="range" class="form-control slide-fontsize-input" data-index="${index}" min="16" max="150" value="${slide.fontSize}">
+                </div>
+                
+                <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 0;">
+                    <div style="flex:1;">
+                        <label>背景色</label>
+                        <input type="color" class="form-control slide-bgcolor-input" data-index="${index}" value="${slide.bgColor}">
+                    </div>
+                    <div style="flex:1;">
+                        <label>文字色</label>
+                        <input type="color" class="form-control slide-textcolor-input" data-index="${index}" value="${slide.textColor}">
+                    </div>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+
+        // リアルタイム反映用のイベントリスナー設定（再描画を防ぎフォーカスを維持）
+        document.querySelectorAll('.slide-text-input').forEach(el => {
+            el.addEventListener('input', (e) => handleInput(e.target.dataset.index, 'text', e.target.value));
+        });
+        document.querySelectorAll('.slide-fontsize-input').forEach(el => {
+            el.addEventListener('input', (e) => handleInput(e.target.dataset.index, 'fontSize', parseInt(e.target.value)));
+        });
+        document.querySelectorAll('.slide-bgcolor-input').forEach(el => {
+            el.addEventListener('input', (e) => handleInput(e.target.dataset.index, 'bgColor', e.target.value));
+        });
+        document.querySelectorAll('.slide-textcolor-input').forEach(el => {
+            el.addEventListener('input', (e) => handleInput(e.target.dataset.index, 'textColor', e.target.value));
+        });
+    }
+
+    /* =========================================
+       Navigation & UI Interactions
+       ========================================= */
+    function prevSlide() {
+        if (currentSlideIndex > 0) {
+            document.getElementById(`pres-slide-${currentSlideIndex}`).classList.remove('active');
+            currentSlideIndex--;
+            document.getElementById(`pres-slide-${currentSlideIndex}`).classList.add('active');
+            updateNavButtons();
+        }
+    }
+
+    function nextSlide() {
+        if (currentSlideIndex < slides.length - 1) {
+            document.getElementById(`pres-slide-${currentSlideIndex}`).classList.remove('active');
+            currentSlideIndex++;
+            document.getElementById(`pres-slide-${currentSlideIndex}`).classList.add('active');
+            updateNavButtons();
+        }
+    }
+
+    function updateNavButtons() {
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        
+        prevBtn.style.opacity = currentSlideIndex === 0 ? '0' : '1';
+        prevBtn.style.pointerEvents = currentSlideIndex === 0 ? 'none' : 'auto';
+        
+        nextBtn.style.opacity = currentSlideIndex === slides.length - 1 ? '0' : '1';
+        nextBtn.style.pointerEvents = currentSlideIndex === slides.length - 1 ? 'none' : 'auto';
+    }
+
+    function toggleEditor() {
+        document.getElementById('editor').classList.toggle('open');
+    }
+
+    /* =========================================
+       Export (Save as HTML)
+       ========================================= */
+    function exportHTML() {
+        // 現在の状態を JSON 化してスクリプトタグに埋め込む
+        // HTML構造を壊さないようにタグをエスケープ
+        const jsonStr = JSON.stringify(slides).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+        const dataScript = document.getElementById('app-data');
+        dataScript.textContent = "\n" + jsonStr + "\n";
+        
+        // 現在のHTMLを取得（DOMの状態そのまま）
+        const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+        
+        // Blobを作成してダウンロード
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 日付を使ったファイル名生成
+        const date = new Date();
+        const yyyymmdd = date.getFullYear() + String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0');
+        a.download = `presentation_${yyyymmdd}.html`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    /* =========================================
+       Utilities & Event Listeners
+       ========================================= */
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, 
+            tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag)
+        );
+    }
+
+    // iPad等のタッチ・スワイプ対応
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    document.addEventListener('touchstart', e => {
+        // エディタ内での操作はスワイプ判定しない
+        if(e.target.closest('#editor')) return;
+        touchStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+
+    document.addEventListener('touchend', e => {
+        if(e.target.closest('#editor')) return;
+        touchEndX = e.changedTouches[0].screenX;
+        
+        const swipeThreshold = 50; // スワイプと判定する最小移動距離(px)
+        if (touchEndX < touchStartX - swipeThreshold) {
+            nextSlide(); // 左へスワイプ -> 次へ
+        }
+        if (touchEndX > touchStartX + swipeThreshold) {
+            prevSlide(); // 右へスワイプ -> 前へ
+        }
+    }, {passive: true});
+
+    // キーボードの矢印キー対応
+    document.addEventListener('keydown', e => {
+        // エディタの入力フォームにフォーカスがある時は無効
+        if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+        
+        if(e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+            nextSlide();
+            if(e.key === ' ') e.preventDefault();
+        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            prevSlide();
+        }
+    });
+
+    // アプリケーション起動
+    document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
