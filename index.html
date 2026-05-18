@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>スライドを作るアプリ</title>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=BIZ+UDPGothic&display=swap');
 
@@ -104,7 +105,7 @@
     @media (pointer: coarse) {
         #settings-btn {
             color: rgba(0,0,0,0.05);
-            opacity: 0.1; /* より確実に薄くする */
+            opacity: 0.1;
         }
     }
 
@@ -180,13 +181,13 @@
     .number-input-group .spinner-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
     
     input[type="number"].form-control.no-spinner {
-        -moz-appearance: textfield; /* Firefox */
+        -moz-appearance: textfield;
         width: 50px; text-align: center; padding: 0;
         border-radius: 0; height: 36px;
     }
     input[type="number"].form-control.no-spinner::-webkit-outer-spin-button,
     input[type="number"].form-control.no-spinner::-webkit-inner-spin-button {
-        -webkit-appearance: none; margin: 0; /* Chrome/Safari/Edge */
+        -webkit-appearance: none; margin: 0;
     }
 
     .image-preview {
@@ -219,6 +220,31 @@
     .btn:hover { background: #f0f0f0; }
     .btn-sm { padding: 0.3rem 0.8rem; font-size: 0.85rem; display: inline-block; }
 
+    /* =========================================
+       HEIC変換中オーバーレイ
+       ========================================= */
+    #converting-overlay {
+        display: none;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 100;
+        align-items: center; justify-content: center;
+        flex-direction: column; gap: 1rem;
+        color: #fff; font-size: 1.1rem;
+    }
+    #converting-overlay.show {
+        display: flex;
+    }
+    .spinner {
+        width: 40px; height: 40px;
+        border: 4px solid rgba(255,255,255,0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
 </style>
 </head>
 <body>
@@ -243,6 +269,12 @@
             <button class="btn" onclick="toggleEditor()">スライドを見る</button>
         </div>
     </div>
+</div>
+
+<!-- HEIC変換中オーバーレイ -->
+<div id="converting-overlay">
+    <div class="spinner"></div>
+    <span>HEICファイルを変換中…</span>
 </div>
 
 <!-- DATA STORAGE: This holds the state and is exported with the HTML -->
@@ -280,7 +312,6 @@
         if (slides.length === 0) {
             addSlide(true);
         } else {
-            // エクスポートされたHTMLを開いた際、常に最初のスライドからスタートさせる
             currentSlideIndex = 0; 
             renderPresentation();
             renderEditor();
@@ -310,7 +341,6 @@
             renderEditor();
             updateNavButtons();
             
-            // 追加したスライドまでスクロール
             setTimeout(() => {
                 const editorContent = document.getElementById('editor-content');
                 editorContent.scrollTop = editorContent.scrollHeight;
@@ -355,19 +385,72 @@
         updateNavButtons();
     }
 
-    // 画像のアップロード処理 (Base64変換)
-    function handleImageUpload(event, index) {
+    /* =========================================
+       画像アップロード (HEIC対応)
+       ========================================= */
+    async function handleImageUpload(event, index) {
         const file = event.target.files[0];
         if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            slides[index].image = e.target.result;
-            slides[index].imageName = file.name;
-            renderPresentation();
-            renderEditor();
-        };
-        reader.readAsDataURL(file);
+
+        const isHeic = file.type === 'image/heic'
+            || file.type === 'image/heif'
+            || file.name.toLowerCase().endsWith('.heic')
+            || file.name.toLowerCase().endsWith('.heif');
+
+        if (isHeic) {
+            // heic2anyが読み込まれているか確認
+            if (typeof heic2any === 'undefined') {
+                alert('HEICの変換ライブラリが読み込まれていません。\nインターネット接続を確認してページを再読み込みしてください。');
+                return;
+            }
+
+            showConvertingOverlay(true);
+            try {
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.85
+                });
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    slides[index].image = e.target.result;
+                    slides[index].imageName = file.name;
+                    showConvertingOverlay(false);
+                    renderPresentation();
+                    renderEditor();
+                };
+                reader.onerror = () => {
+                    showConvertingOverlay(false);
+                    alert('画像の読み込みに失敗しました。');
+                };
+                reader.readAsDataURL(convertedBlob);
+            } catch (err) {
+                showConvertingOverlay(false);
+                alert('HEICの変換に失敗しました。\n' + err.message);
+            }
+        } else {
+            // 通常の画像ファイル
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                slides[index].image = e.target.result;
+                slides[index].imageName = file.name;
+                renderPresentation();
+                renderEditor();
+            };
+            reader.onerror = () => {
+                alert('画像の読み込みに失敗しました。');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function showConvertingOverlay(visible) {
+        const overlay = document.getElementById('converting-overlay');
+        if (visible) {
+            overlay.classList.add('show');
+        } else {
+            overlay.classList.remove('show');
+        }
     }
 
     // 画像の削除
@@ -431,7 +514,7 @@
         });
     }
 
-    // 特定のスライドのみ更新（入力中のパフォーマンス向上・フォーカス維持用）
+    // 特定のスライドのみ更新
     function updatePresentationSlide(index) {
         const slideEl = document.getElementById(`pres-slide-${index}`);
         if (!slideEl) return;
@@ -439,7 +522,6 @@
         const slide = slides[index];
         applySlideStyle(slideEl, slide);
         
-        // 中身を再構築
         slideEl.innerHTML = '';
         const contentWrapper = document.createElement('div');
         contentWrapper.className = 'slide-content';
@@ -476,7 +558,7 @@
                 <div class="form-group row-layout" style="margin-bottom: 1.2rem;">
                     <label>画像</label>
                     <label for="file-${index}" class="btn btn-sm" style="margin: 0;">ファイルを選択</label>
-                    <input type="file" id="file-${index}" style="display:none;" accept="image/*" onchange="handleImageUpload(event, ${index})">
+                    <input type="file" id="file-${index}" style="display:none;" accept="image/*,.heic,.heif" onchange="handleImageUpload(event, ${index})">
                     <span class="file-name-text">${slide.imageName || 'ファイル未選択'}</span>
                     ${slide.image ? `
                         <button type="button" class="btn btn-sm" style="color: #000; border-color: #ccc; background: #eee;" onclick="removeImage(${index})">画像を削除</button>
@@ -521,7 +603,7 @@
             container.appendChild(item);
         });
 
-        // リアルタイム反映用のイベントリスナー設定（再描画を防ぎフォーカスを維持）
+        // リアルタイム反映用イベントリスナー
         document.querySelectorAll('.slide-text-input').forEach(el => {
             el.addEventListener('input', (e) => handleInput(e.target.dataset.index, 'text', e.target.value));
         });
@@ -576,22 +658,17 @@
        Export (Save as HTML)
        ========================================= */
     function exportHTML() {
-        // 現在の状態を JSON 化してスクリプトタグに埋め込む
-        // HTML構造を壊さないようにタグをエスケープ
         const jsonStr = JSON.stringify(slides).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
         const dataScript = document.getElementById('app-data');
         dataScript.textContent = "\n" + jsonStr + "\n";
         
-        // 現在のHTMLを取得（DOMの状態そのまま）
         const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
         
-        // Blobを作成してダウンロード
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         
-        // 日付を使ったファイル名生成
         const date = new Date();
         const yyyymmdd = date.getFullYear() + String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0');
         a.download = `presentation_${yyyymmdd}.html`;
@@ -622,7 +699,6 @@
     let touchEndX = 0;
 
     document.addEventListener('touchstart', e => {
-        // エディタ内での操作はスワイプ判定しない
         if(e.target.closest('#editor')) return;
         touchStartX = e.changedTouches[0].screenX;
     }, {passive: true});
@@ -631,18 +707,17 @@
         if(e.target.closest('#editor')) return;
         touchEndX = e.changedTouches[0].screenX;
         
-        const swipeThreshold = 50; // スワイプと判定する最小移動距離(px)
+        const swipeThreshold = 50;
         if (touchEndX < touchStartX - swipeThreshold) {
-            nextSlide(); // 左へスワイプ -> 次へ
+            nextSlide();
         }
         if (touchEndX > touchStartX + swipeThreshold) {
-            prevSlide(); // 右へスワイプ -> 前へ
+            prevSlide();
         }
     }, {passive: true});
 
     // キーボードの矢印キー対応
     document.addEventListener('keydown', e => {
-        // エディタの入力フォームにフォーカスがある時は無効
         if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
         
         if(e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
