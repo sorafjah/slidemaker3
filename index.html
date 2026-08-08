@@ -92,7 +92,7 @@
     #settings-btn {
         position: fixed; top: 0.8rem; left: 0.8rem;
         font-size: 1.5rem; background: transparent; border: none;
-        color: rgba(0,0,0,0.25); cursor: pointer; z-index: 10;
+        color: rgba(0,0,0,0.35); cursor: pointer; z-index: 10;
         transition: color 0.3s, transform 0.3s;
         padding: 0.4rem; border-radius: 50%;
     }
@@ -101,11 +101,12 @@
         color: rgba(0,0,0,0.7); transform: rotate(90deg);
     }
 
-    /* iPad等のタッチデバイスでは歯車をさらに薄く表示 */
+    /* iPad等のタッチデバイスでは、ホバーが効かない代わりに
+       タップしやすいよう常時ある程度はっきり見える濃さにする */
     @media (pointer: coarse) {
         #settings-btn {
-            color: rgba(0,0,0,0.05);
-            opacity: 0.1;
+            color: rgba(0,0,0,0.35);
+            opacity: 1;
         }
     }
 
@@ -220,6 +221,44 @@
     .btn:hover { background: #f0f0f0; }
     .btn-sm { padding: 0.3rem 0.8rem; font-size: 0.85rem; display: inline-block; }
 
+    /* =========================================
+       Help Popup (使い方)
+       ========================================= */
+    #help-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.4); z-index: 30;
+        display: none; align-items: center; justify-content: center;
+        padding: 5%;
+    }
+    #help-overlay.open { display: flex; }
+
+    #help-modal {
+        background: #fff; border-radius: 12px; max-width: 480px; width: 100%;
+        max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+        padding: 1.8rem;
+    }
+
+    #help-modal h2 {
+        margin: 0 0 1.2rem; font-size: 1.3rem; color: var(--primary);
+    }
+
+    #help-modal ol {
+        margin: 0 0 1.2rem; padding-left: 1.3rem;
+    }
+
+    #help-modal li {
+        margin-bottom: 0.7rem; line-height: 1.5;
+    }
+
+    #help-modal p.help-note {
+        font-size: 0.85rem; color: #666; line-height: 1.5; margin: 0 0 1.4rem;
+        background: var(--panel-bg); padding: 0.8rem; border-radius: 6px;
+    }
+
+    #help-modal .btn {
+        width: 100%;
+    }
 </style>
 </head>
 <body>
@@ -250,13 +289,28 @@
 <!-- 非表示のファイル読み込み用input -->
 <input type="file" id="import-file-input" accept=".html" style="display:none;" onchange="handleImport(event)">
 
+<!-- 使い方ポップアップ -->
+<div id="help-overlay">
+    <div id="help-modal">
+        <h2>このアプリの使い方</h2>
+        <ol>
+            <li>文章・画像・文字サイズ・背景色・文字色を自由に変更できます</li>
+            <li>「スライドを追加」で枚数を増やせます</li>
+            <li>「スライドを見る」を押すと、実際のスライド表示を確認できます</li>
+            <li>「HTMLで保存」を押すと、このアプリごと1つのファイルとして保存できます（次回はそのファイルを開けば続きから編集できます）</li>
+        </ol>
+        <p class="help-note">スライドを見ているときは、画面左上の ⚙️ アイコンをタップすると編集画面に戻れます。画面の左右をタップ、またはスワイプでページ送りできます。</p>
+        <button class="btn" onclick="closeHelp()">はじめる</button>
+    </div>
+</div>
+
 <!-- DATA STORAGE: This holds the state and is exported with the HTML -->
 <script id="app-data" type="application/json">
 [
     {
         "id": "init_1",
-        "text": "プレゼンテーションへようこそ\n\n画面左上の ⚙️ アイコンから編集を開始してください。",
-        "fontSize": 48,
+        "text": "ここにスライドの文章を入力しましょう\n\n改行や文字の色・サイズ、写真の追加も自由自在です",
+        "fontSize": 44,
         "bgColor": "#ffffff",
         "textColor": "#333333",
         "image": null
@@ -293,6 +347,13 @@
 
         // 起動時はエディタ画面を表示
         document.getElementById('editor').classList.add('open');
+
+        // 起動時は使い方ポップアップを表示
+        document.getElementById('help-overlay').classList.add('open');
+    }
+
+    function closeHelp() {
+        document.getElementById('help-overlay').classList.remove('open');
     }
 
     // スライドの初期データ構造
